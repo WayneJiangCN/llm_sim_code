@@ -170,12 +170,13 @@ namespace GNN
       featureRequestPorts.emplace_back(name + "f_side" + std::to_string(i), *this, i, "feature");
 
       // 初始化参数配置
-      const auto& param_config     = getCurrentParamConfig();
-      file_stall[i].channel_id     = i;
-      file_stall[i].file_total_row = param_config.file_total_row;
-      file_stall[i].file_total_col = param_config.file_total_col;
-      file_stall[i].file_slice_row = param_config.file_slice_row;
-      file_stall[i].file_slice_col = param_config.file_slice_col;
+      const auto& param_config      = getCurrentParamConfig();
+      file_stall[i].channel_id      = i;
+      file_stall[i].file_total_row  = param_config.file_total_row;
+      file_stall[i].file_total_col  = param_config.file_total_col;
+      file_stall[i].file_slice_row  = param_config.file_slice_row;
+      file_stall[i].file_slice_col  = param_config.file_slice_col;
+      file_stall[i].final_slice_row = param_config.final_slice_row;
 
       // 计算地址计数
       file_stall[i].total_addr_count =
@@ -935,12 +936,25 @@ namespace GNN
                   compute_state.current_weight_block,
                   block_config.total_weight_blocks);
           // 计算地址计数
-          file_stall[bank_id].total_addr_count =
-            file_stall[bank_id].file_slice_row * file_stall[bank_id].file_slice_col / BURST_BITS;
-          file_stall[bank_id].final_addr = ((file_stall[bank_id].file_slice_row *
-                                             file_stall[bank_id].file_slice_col / BURST_BITS) *
-                                            INST_ADDR_STRIDE) +
-                                           bank_id * CHANNEL_ADDR_DIF;
+          if (compute_state.current_feature_block + 1 == compute_state.total_feature_blocks &&
+              file_stall[bank_id].final_slice_row > 0)
+          {
+            file_stall[bank_id].total_addr_count =
+              file_stall[bank_id].final_slice_row * file_stall[bank_id].file_slice_col / BURST_BITS;
+            file_stall[bank_id].final_addr = ((file_stall[bank_id].final_slice_row *
+                                               file_stall[bank_id].file_slice_col / BURST_BITS) *
+                                              INST_ADDR_STRIDE) +
+                                             bank_id * CHANNEL_ADDR_DIF;
+          }
+          else
+          {
+            file_stall[bank_id].total_addr_count =
+              file_stall[bank_id].file_slice_row * file_stall[bank_id].file_slice_col / BURST_BITS;
+            file_stall[bank_id].final_addr = ((file_stall[bank_id].file_slice_row *
+                                               file_stall[bank_id].file_slice_col / BURST_BITS) *
+                                              INST_ADDR_STRIDE) +
+                                             bank_id * CHANNEL_ADDR_DIF;
+          }
 
           // 重置 stall 标志，准备读取下一个 slice
           file_stall[bank_id].decoder_stall      = false;
@@ -1005,10 +1019,11 @@ namespace GNN
           for (size_t bank_id = 0; bank_id < active_banks_; bank_id++)
           {
             // 更新参数配置
-            file_stall[bank_id].file_total_row = next_param.file_total_row;
-            file_stall[bank_id].file_total_col = next_param.file_total_col;
-            file_stall[bank_id].file_slice_row = next_param.file_slice_row;
-            file_stall[bank_id].file_slice_col = next_param.file_slice_col;
+            file_stall[bank_id].file_total_row  = next_param.file_total_row;
+            file_stall[bank_id].file_total_col  = next_param.file_total_col;
+            file_stall[bank_id].file_slice_row  = next_param.file_slice_row;
+            file_stall[bank_id].file_slice_col  = next_param.file_slice_col;
+            file_stall[bank_id].final_slice_row = next_param.final_slice_row;
 
             // 计算地址计数
             file_stall[bank_id].total_addr_count =

@@ -287,9 +287,9 @@ namespace GNN
         if (file_name.length() > 4 && file_name.substr(file_name.length() - 4) == ".txt")
         {
           // 只保留文件名开头是 q / k / v 的
-          const bool starts_with_q = (file_name.rfind("q", 0) == 0);
-          const bool starts_with_k = (file_name.rfind("k", 0) == 0);
-          const bool starts_with_v = (file_name.rfind("v", 0) == 0);
+          // const bool starts_with_q = (file_name.rfind("q", 0) == 0);
+          // const bool starts_with_k = (file_name.rfind("k", 0) == 0);
+          // const bool starts_with_v = (file_name.rfind("v", 0) == 0);
 
           // if (starts_with_q || starts_with_k || starts_with_v)
           // {

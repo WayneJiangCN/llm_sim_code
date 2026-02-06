@@ -36,6 +36,7 @@ namespace GNN
     // 计算出的分块信息
     uint32_t total_feature_blocks;  // Feature 需要多少块
     uint32_t total_weight_blocks;   // Weight 需要多少块
+    uint32_t final_weight_blocks;   // Weight 最后需要多少块
   };
 
   // Llama 7B 参数配置表
@@ -46,8 +47,9 @@ namespace GNN
     std::string param_type;  // "attention_qkv", "attention_out", "mlp_gate", "mlp_up", "mlp_down"
 
     // 矩阵维度
-    uint32_t file_total_row;  // 输入维度（Feature 维度）
-    uint32_t file_total_col;  // 输出维度（Weight 维度）
+    uint32_t file_total_row;   // 输入维度（Feature 维度）
+    uint32_t final_slice_row;  // 最后一个 Feature 切片的行数
+    uint32_t file_total_col;   // 输出维度（Weight 维度）
 
     // 分块配置
     uint32_t file_slice_row;  // 单次读取的 Feature 大小
@@ -80,28 +82,28 @@ namespace GNN
     // Layer 0
     // Attention: Q(4096x4096), K(4096x1024), V(4096x1024), Out(4096x4096)
 
-    { "layer_0_mlp_down", "mlp_down", 11008, 4096, 4096, BITMAP_WORD_BITS },
+    { "layer_0_mlp_down", "mlp_down", 11008, 2816, 4096, 4096, BITMAP_WORD_BITS },
 
     // MLP: Gate(4096x11008), Up(4096x11008), Down(11008x4096)
-    { "layer_0_mlp_gate", "mlp_gate", 4096, 11008, 4096, BITMAP_WORD_BITS },
+    { "layer_0_mlp_gate", "mlp_gate", 4096, 0, 11008, 4096, BITMAP_WORD_BITS },
 
-    { "layer_0_attention_k", "attention_qkv", 4096, 4096, 4096, BITMAP_WORD_BITS },
-    { "layer_0_attention_out", "attention_out", 4096, 4096, 4096, BITMAP_WORD_BITS },
-    { "layer_0_attention_q", "attention_qkv", 4096, 4096, 4096, BITMAP_WORD_BITS },
+    { "layer_0_attention_k", "attention_qkv", 4096, 0, 4096, 4096, BITMAP_WORD_BITS },
+    { "layer_0_attention_out", "attention_out", 4096, 0, 4096, 4096, BITMAP_WORD_BITS },
+    { "layer_0_attention_q", "attention_qkv", 4096, 0, 4096, 4096, BITMAP_WORD_BITS },
 
-    { "layer_0_mlp_up", "mlp_up", 4096, 11008, 4096, BITMAP_WORD_BITS },
-    { "layer_0_attention_v", "attention_qkv", 4096, 4096, 4096, BITMAP_WORD_BITS },
-    { "layer_1_mlp_down", "mlp_down", 11008, 4096, 4096, BITMAP_WORD_BITS },
+    { "layer_0_mlp_up", "mlp_up", 4096, 0, 11008, 4096, BITMAP_WORD_BITS },
+    { "layer_0_attention_v", "attention_qkv", 4096, 0, 4096, 4096, BITMAP_WORD_BITS },
+    { "layer_1_mlp_down", "mlp_down", 11008, 2816, 4096, 4096, BITMAP_WORD_BITS },
 
     // MLP: Gate(4096x11008), Up(4096x11008), Down(11008x4096)
-    { "layer_1_mlp_gate", "mlp_gate", 4096, 11008, 4096, BITMAP_WORD_BITS },
+    { "layer_1_mlp_gate", "mlp_gate", 4096, 0, 11008, 4096, BITMAP_WORD_BITS },
 
-    { "layer_1_attention_k", "attention_qkv", 4096, 4096, 4096, BITMAP_WORD_BITS },
-    { "layer_1_attention_out", "attention_out", 4096, 4096, 4096, BITMAP_WORD_BITS },
-    { "layer_1_attention_q", "attention_qkv", 4096, 4096, 4096, BITMAP_WORD_BITS },
+    { "layer_1_attention_k", "attention_qkv", 4096, 0, 4096, 4096, BITMAP_WORD_BITS },
+    { "layer_1_attention_out", "attention_out", 4096, 0, 4096, 4096, BITMAP_WORD_BITS },
+    { "layer_1_attention_q", "attention_qkv", 4096, 0, 4096, 4096, BITMAP_WORD_BITS },
 
-    { "layer_1_mlp_up", "mlp_up", 4096, 11008, 4096, BITMAP_WORD_BITS },
-    { "layer_1_attention_v", "attention_qkv", 4096, 4096, 4096, BITMAP_WORD_BITS }
+    { "layer_1_mlp_up", "mlp_up", 4096, 0, 11008, 4096, BITMAP_WORD_BITS },
+    { "layer_1_attention_v", "attention_qkv", 4096, 0, 4096, 4096, BITMAP_WORD_BITS }
 
     // Layer 1 (重复模式，此处省略细节)
     // ... 重复 31 次 (共32层)
@@ -207,6 +209,7 @@ namespace GNN
     uint32_t file_total_col     = 0;
     uint32_t file_slice_row     = 0;
     uint32_t file_slice_col     = 0;
+    uint32_t final_slice_row    = 0;
     uint32_t total_addr_count   = 0;
     uint32_t final_addr         = 0;
     uint32_t current_addr_count = 0;
