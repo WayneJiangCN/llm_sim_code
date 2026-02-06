@@ -20,30 +20,37 @@ namespace GNN
 #define DRAM_MODE
 //data store
 #define DATA_STORE       1
+#define FLOAT_CAL        1
+#define SEG_NUM          2
+#define MAC_NUM          16
+#define WORD_SIZE        16  //每个Burst的单词大小
+
+#define BITMAP_WORD_BITS 32
 #define INST_ADDR_STRIDE 512  //每个指令的地址步长
 #define CHANNEL_ADDR_DIF 64
-#define SRAM_CAPACITY    262144        //256KB SRAM容量，单位字数
-#define WORD_SIZE        8             //每个Burst的单词大小
+#define SRAM_CAPACITY    262144  //256KB SRAM容量，单位字数
+
 #define STORAGE_SIZE     16            //存储单元的大小
 #define BURST_BITS       512           //每个Burst的位数
 #define BITMAP_LINE_SIZE 32            //每个行的大小
 #define BITMAP_READ_BITS STORAGE_SIZE  //每次从bitmap_words读取的位数（固定16bits）
-#define BITMAP_READ_MASK ((1ULL << BITMAP_READ_BITS) - 1)  //读取掩码0xFFFF
-#define BITMAP_WORD_BITS 32                                //每个bitmap word的位数
+#define BITMAP_READ_MASK                                 \
+  ((1ULL << BITMAP_READ_BITS) - 1)  //读取掩码0xFFFF \ \ \
+                                    //每个bitmap word的位数
 #define BITMAP_WORD_MASK \
   ((BITMAP_WORD_BITS >= 64) ? ~0ULL : ((1ULL << BITMAP_WORD_BITS) - 1))  //bitmap word掩码
-#define MAC_NUM                  32
+
 #define BURST_NUM                BURST_BITS / WORD_SIZE  //每个指令中一个burst有多少个数
 #define BITMAP_SLICE_ROW_NUM_CFG 2048                    //每个切片的行数
 #define BITMAP_SLICE_COL_NUM_CFG 1                       //每个切片的列数
-#define SPARSITY                 0.5                     //稀疏度
+
 #define TOTAL_SLICE_NUM_CFG      3
 #define TOTAL_INST_NUM_CFG       3
 #define CHANNEL_NUM              8
 
 #define BITMAP_SIZE              BITMAP_SLICE_ROW_NUM_CFG* BITMAP_WORD_BITS / BURST_BITS
 #define WT_SIZE                  BITMAP_SLICE_ROW_NUM_CFG * BITMAP_WORD_BITS * WORD_SIZE / BURST_BITS
-#define FW_ROW_SIZE              1
+#define FW_ROW_SIZE              4
 #define FW_SIZE                  FW_ROW_SIZE * BITMAP_SLICE_ROW_NUM_CFG * WORD_SIZE / BURST_BITS
 #define FEATURE_NUM_PER_ROW \
   BITMAP_SLICE_ROW_NUM_CFG / BURST_NUM* WORD_SIZE / BURST_BITS * 2  //每个行对应的特征数量

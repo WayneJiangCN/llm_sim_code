@@ -192,8 +192,8 @@ namespace GNN
       if (!inRange(addr, bytes))
         return false;
       std::vector<uint16_t> out(words);
-      if (0)
-      {  //BITMAP_WORD_BITS<=16
+      if (BITMAP_WORD_BITS <= 16 && FLOAT_CAL)  //float16 or int16
+      {                                         //BITMAP_WORD_BITS<=16
         uint64_t idx = (addr % 512) / 64;
         if (addr >= 512)
         {
@@ -202,12 +202,12 @@ namespace GNN
         // std::cout<<"read addr:"<<addr<<"  index:"<<idx<<std::endl;
         for (storage_t i = 0; i < words; ++i)
         {
-          out[i] = storage[idx + i * 16];
+          out[i] = storage[idx + i * 8];
           // std::cout << "  addr:" << (idx + i * 16)
           //   << "  data(bin):" << std::bitset<16>(static_cast<uint16_t>(out[i])) << std::endl;
         }
       }
-      else if (BITMAP_WORD_BITS <= 32)
+      else if (BITMAP_WORD_BITS > 16 && FLOAT_CAL)  //fixed_point_data
       {
         uint64_t idx = (addr % 512) / 32;
         if (addr >= 512)
@@ -228,7 +228,28 @@ namespace GNN
           }
         }
       }
-      else if (BITMAP_WORD_BITS > 32)
+      else if (BITMAP_WORD_BITS <= 32 && !FLOAT_CAL)  //fixed_point_data
+      {
+        uint64_t idx = (addr % 512) / 32;
+        if (addr >= 512)
+        {
+          idx += (addr - addr % 512) / 2;
+        }
+
+        uint16_t num = 0;
+        // std::cout<<"read addr:"<<addr<<"  index:"<<idx<<std::endl;
+        for (storage_t i = 0; i < words / 2; ++i)
+        {
+          for (storage_t j = 0; j < 2; ++j)
+          {
+            out[num] = storage[idx + i * 16 + j * 8];
+            num++;
+            // std::cout << "  addr:" << (idx + i * 16+j)
+            //     << "  data(bin):" << std::bitset<16>(static_cast<uint16_t>(out[i])) << std::endl;
+          }
+        }
+      }
+      else if (BITMAP_WORD_BITS > 32 && !FLOAT_CAL)  //fixed_point_data0
       {
 
         uint64_t idx = (addr % 512) / 16;

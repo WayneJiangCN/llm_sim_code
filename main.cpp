@@ -43,8 +43,8 @@ namespace GNN
 int main()
 {
   // 配置常量
-  constexpr int         num_banks      = 8;
-  constexpr int         dram_buf_size  = 256 * 8;
+  constexpr int num_banks = 8;
+
   constexpr int         num_upstreams  = 4;
   constexpr uint64_t    max_cycles     = 30000000;
   constexpr int         bitmap_size    = BITMAP_SIZE;
@@ -55,18 +55,18 @@ int main()
   constexpr const char* output_dir     = ".";
   constexpr const char* trace_out_file = "./output/trace_out_file.txt";
 
-  constexpr const char* layer0_path = "./data/test/llama50";
-  int                   num         = BITMAP_SLICE_ROW_NUM_CFG * BURST_BITS / WORD_SIZE * SPARSITY;
+  constexpr const char* layer0_path = "./data/floating_point_data_test/llama75";
+
   // 初始化仿真系统
-  gSim                              = new EventQueue("main_queue");
-  miniDebugLevel                    = GNN::DBG_DEBUG;  // SIM_DRAM_STORAGE FILE_READ
+  gSim                         = new EventQueue("main_queue");
+  miniDebugLevel               = GNN::DBG_DEBUG;  // SIM_DRAM_STORAGE FILE_READ
   // miniDebugModules = {"SPARSE", "DECODER", "", "",
   //                     "WeightBank", "FeatureBank", "BitmapBank",
   //                     "DmaBuffer","DMA","DRAM_ARB"};
   //    miniDebugModules = {"CAM", "", "DECODER", "BUG", "FILE_READ", "SIM_DRAM_STORAGE", "","CAM"};
-  miniDebugModules                  = { "BLOCK", "RESULT", "SIM_DRAM_STORAGE" };
+  miniDebugModules             = { "", "RESULT", "SIM_DRAM_STORAGE", "" };
   // 创建存储和数据接口
-  SimDramStorage* sim_storages      = new SimDramStorage(0, "*", ".txt");
+  SimDramStorage* sim_storages = new SimDramStorage(0, "*", ".txt");
 
   // 读取layer_0文件夹下所有子文件夹的数据
   uint64_t layer0_burst_num = sim_storages->readLayer0AllFoldersData(layer0_path);

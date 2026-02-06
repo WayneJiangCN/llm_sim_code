@@ -181,6 +181,7 @@ namespace GNN
       // 计算地址计数
       file_stall[i].total_addr_count =
         file_stall[i].file_slice_row * file_stall[i].file_slice_col / BURST_BITS;
+
       file_stall[i].final_addr =
         ((file_stall[i].file_slice_row * file_stall[i].file_slice_col / BURST_BITS) *
          INST_ADDR_STRIDE) +
@@ -704,9 +705,9 @@ namespace GNN
       totall_num_output      = totall_num_output + emitted0 + emitted1;
 
       totall_num_input = totall_num_input + BITMAP_WORD_BITS * add_rows;
-      if (emitted0 >= Pairing_value)
+      if (emitted0 > Pairing_value)
         d16_cnt++;
-      if (emitted1 >= Pairing_value)
+      if (emitted1 > Pairing_value)
         d16_cnt++;
       a16_cnt += 2;
 
@@ -786,13 +787,13 @@ namespace GNN
         }
       }
 
-      for (int seg = 0; seg < 4; seg++)
+      for (int seg = 0; seg < SEG_NUM; seg++)
       {
         // Row 0, Segment seg
         if (emitted0 > 0)
         {
-          int      seg_start = seg * BITMAP_WORD_BITS / 4;
-          int      seg_end   = (seg + 1) * BITMAP_WORD_BITS / 4;
+          int      seg_start = seg * BITMAP_WORD_BITS / SEG_NUM;
+          int      seg_end   = (seg + 1) * BITMAP_WORD_BITS / SEG_NUM;
           int      seg_count = 0;
           bitmap_t seg_bits  = 0;
           for (int i = seg_start; i < seg_end && i < BITMAP_WORD_BITS; i++)
@@ -822,8 +823,8 @@ namespace GNN
         // Row 1, Segment seg
         if (emitted1 > 0)
         {
-          int      seg_start = seg * BITMAP_WORD_BITS / 4;
-          int      seg_end   = (seg + 1) * BITMAP_WORD_BITS / 4;
+          int      seg_start = seg * BITMAP_WORD_BITS / SEG_NUM;
+          int      seg_end   = (seg + 1) * BITMAP_WORD_BITS / SEG_NUM;
           int      seg_count = 0;
           bitmap_t seg_bits  = 0;
           for (int i = seg_start; i < seg_end && i < BITMAP_WORD_BITS; i++)
@@ -834,20 +835,20 @@ namespace GNN
               seg_bits |= (1ULL << (i - seg_start));
             }
           }
-          Info2Cam_[bank_id].paired_success[4 + seg] = false;
-          Info2Cam_[bank_id].entry[4 + seg]          = { seg_count, seg_bits };
+          Info2Cam_[bank_id].paired_success[SEG_NUM + seg] = false;
+          Info2Cam_[bank_id].entry[SEG_NUM + seg]          = { seg_count, seg_bits };
           D_BANK_INFO(bank_id,
                       "DECODER",
                       "Bank %d: Row1 Segment %d: count=%d, bits=0x%llx",
                       bank_id,
                       seg,
-                      Info2Cam_[bank_id].entry[4 + seg].value,
+                      Info2Cam_[bank_id].entry[SEG_NUM + seg].value,
                       static_cast<unsigned long long>(seg_bits));
         }
         else
         {
-          Info2Cam_[bank_id].paired_success[4 + seg] = true;
-          Info2Cam_[bank_id].entry[4 + seg]          = { 0, 0 };
+          Info2Cam_[bank_id].paired_success[SEG_NUM + seg] = true;
+          Info2Cam_[bank_id].entry[SEG_NUM + seg]          = { 0, 0 };
         }
       }
       if (Info2Cam_[bank_id].entry[0].value < emitted0_hist_.size())
@@ -871,7 +872,7 @@ namespace GNN
       auto& Info2Cam   = Info2Cam_[bank_id];
       // 检查8个CAM是否都成功配对
       bool  all_paired = true;
-      for (int i = 0; i < 8; i++)
+      for (int i = 0; i < 2 * SEG_NUM; i++)
       {
         if (!Info2Cam.paired_success[i])
         {
@@ -882,7 +883,7 @@ namespace GNN
       if (all_paired)
       {
         // 需要清空
-        for (int cam_idx = 0; cam_idx < 8; ++cam_idx)
+        for (int cam_idx = 0; cam_idx < 2 * SEG_NUM; ++cam_idx)
         {
           auto& cam = hash_cam_[bank_id][cam_idx];
           if (cam.size > 0)
@@ -896,7 +897,7 @@ namespace GNN
     bool break_all = false;
     for (uint32_t i = 0; i < active_banks_; i++)
     {
-      for (int cam_idx = 0; cam_idx < 8; ++cam_idx)
+      for (int cam_idx = 0; cam_idx < 2 * SEG_NUM; ++cam_idx)
       {
         auto& cam = hash_cam_[i][cam_idx];
         if (cam.size > 0)
@@ -1108,61 +1109,64 @@ namespace GNN
     D_BANK_INFO(
       bank_id, "CAM", "Bank %d: Processing 8 CAMs, tick=%llu", bank_id, gSim->getCurTick());
 
-    bool all_success  = true;
-    bool paired[2][4] = {};
+    bool all_success        = true;
+    bool paired[2][SEG_NUM] = {};
 
     // 先尝试在各自CAM中直接配对
-    for (int cam_seg = 0; cam_seg < 4; cam_seg++)
+    for (int cam_seg = 0; cam_seg < SEG_NUM; cam_seg++)
     {
       bool segment_paired = false;  // 该段是否已有配对成功
       for (int cam_idx = 0; cam_idx < 2; cam_idx++)
       {
-        if (Info2Cam.entry[cam_idx * 4 + cam_seg].value <= 0 ||
-            Info2Cam.paired_success[cam_idx * 4 + cam_seg])
+        if (Info2Cam.entry[cam_idx * SEG_NUM + cam_seg].value <= 0 ||
+            Info2Cam.paired_success[cam_idx * SEG_NUM + cam_seg])
           continue;
         D_BANK_DEBUG(bank_id,
                      "CAM",
                      "Bank %d: CAM[%d] trying insert-and-pair, value=%d",
                      bank_id,
-                     cam_idx * 4 + cam_seg,
-                     Info2Cam.entry[cam_idx * 4 + cam_seg].value);
+                     cam_idx * SEG_NUM + cam_seg,
+                     Info2Cam.entry[cam_idx * SEG_NUM + cam_seg].value);
         // 同一段的两行互斥：该段尚未有配对成功时才尝试
         if (!segment_paired)
         {
           paired[cam_idx][cam_seg] =
             tryInsertAndPair(bank_id,
-                             cam_idx * 4 + cam_seg,
-                             Info2Cam.entry[cam_idx * 4 + cam_seg].value,
-                             Info2Cam.entry[cam_idx * 4 + cam_seg].row_bits);
-          Info2Cam.paired_success[cam_idx * 4 + cam_seg] = paired[cam_idx][cam_seg];
+                             cam_idx * SEG_NUM + cam_seg,
+                             Info2Cam.entry[cam_idx * SEG_NUM + cam_seg].value,
+                             Info2Cam.entry[cam_idx * SEG_NUM + cam_seg].row_bits);
+          Info2Cam.paired_success[cam_idx * SEG_NUM + cam_seg] = paired[cam_idx][cam_seg];
           if (paired[cam_idx][cam_seg])
           {
             segment_paired = true;  // 标记该段已有配对成功
           }
         }
-        if (Info2Cam.paired_success[cam_idx * 4 + cam_seg])
+        if (Info2Cam.paired_success[cam_idx * SEG_NUM + cam_seg])
         {
-          D_BANK_INFO(
-            bank_id, "CAM", "Bank %d: CAM[%d] paired successfully", bank_id, cam_idx * 4 + cam_seg);
+          D_BANK_INFO(bank_id,
+                      "CAM",
+                      "Bank %d: CAM[%d] paired successfully",
+                      bank_id,
+                      cam_idx * SEG_NUM + cam_seg);
         }
       }
       for (int cam_idx = 0; cam_idx < 2; cam_idx++)
       {
-        auto& cam = hash_cam_[bank_id][cam_seg + cam_idx * 4];
+        auto& cam = hash_cam_[bank_id][cam_seg + cam_idx * SEG_NUM];
         if (cam.size >= static_cast<size_t>(kAggressiveThreshold))
         {
 
-          if (Info2Cam.entry[cam_idx * 4 + cam_seg].value <= 0 ||
-              Info2Cam.paired_success[cam_idx * 4 + cam_seg])
+          if (Info2Cam.entry[cam_idx * SEG_NUM + cam_seg].value <= 0 ||
+              Info2Cam.paired_success[cam_idx * SEG_NUM + cam_seg])
             continue;
           if (!segment_paired)
           {
             paired[cam_idx][cam_seg] =
               CamalfullAndPair(bank_id,
-                               cam_idx * 4 + cam_seg,
-                               Info2Cam.entry[cam_idx * 4 + cam_seg].value,
-                               Info2Cam.entry[cam_idx * 4 + cam_seg].row_bits);
-            Info2Cam.paired_success[cam_idx * 4 + cam_seg] = paired[cam_idx][cam_seg];
+                               cam_idx * SEG_NUM + cam_seg,
+                               Info2Cam.entry[cam_idx * SEG_NUM + cam_seg].value,
+                               Info2Cam.entry[cam_idx * SEG_NUM + cam_seg].row_bits);
+            Info2Cam.paired_success[cam_idx * SEG_NUM + cam_seg] = paired[cam_idx][cam_seg];
             if (paired[cam_idx][cam_seg])
             {
               segment_paired = true;  // 标记该段已有配对成功
@@ -1185,25 +1189,25 @@ namespace GNN
     //     else
     //     {
     //       auto& cam_0 = hash_cam_[bank_id][cam_seg];
-    //       auto& cam_1 = hash_cam_[bank_id][cam_seg + 4];
+    //       auto& cam_1 = hash_cam_[bank_id][cam_seg + SEG_NUM];
 
     //       // 选择压力较大的CAM进行驱逐
     //       int cam_idx_to_evict = (cam_0.size >= cam_1.size) ? 0 : 1;
     //       for (int attempt = 0; attempt < 2; attempt++)
     //       {
     //         int cam_idx = (cam_idx_to_evict + attempt) % 2;
-    //         if (!Info2Cam.paired_success[cam_seg + cam_idx * 4])
+    //         if (!Info2Cam.paired_success[cam_seg + cam_idx * SEG_NUM])
     //         {
-    //           auto& cam = hash_cam_[bank_id][cam_seg + cam_idx * 4];
+    //           auto& cam = hash_cam_[bank_id][cam_seg + cam_idx * SEG_NUM];
     //           if (cam.size >= static_cast<size_t>(kAggressiveThreshold))
     //           {
     //             D_BANK_INFO(bank_id,
     //                         "CAM",
     //                         "Bank %d: CAM[%d] size=%zu >= threshold, evicting",
     //                         bank_id,
-    //                         cam_seg + cam_idx * 4,
+    //                         cam_seg + cam_idx * SEG_NUM,
     //                         cam.size);
-    //             bool evict_success = evictPairsLessThan16(bank_id, cam_seg + cam_idx * 4);
+    //             bool evict_success = evictPairsLessThan16(bank_id, cam_seg + cam_idx * SEG_NUM);
     //             if (evict_success)
     //               break;
     //           }
@@ -1213,7 +1217,7 @@ namespace GNN
     //   }
 
     // 再尝试仅插入
-    for (int cam_idx = 0; cam_idx < 8; ++cam_idx)
+    for (int cam_idx = 0; cam_idx < 2 * SEG_NUM; ++cam_idx)
     {
       if (Info2Cam.entry[cam_idx].value > 0 && !Info2Cam.paired_success[cam_idx])
       {
@@ -1299,7 +1303,7 @@ namespace GNN
     bool paired_success = processHashCam(bank_id);
     // (void)paired_success;
     bool all_paired     = true;
-    for (int i = 0; i < 8; i++)
+    for (int i = 0; i < 2 * SEG_NUM; i++)
     {
       if (!Info2Cam_[bank_id].paired_success[i])
       {
@@ -1335,14 +1339,14 @@ namespace GNN
   {
     const auto& info = Info2Cam_[bank_id];
     // 检查8个entry和8个paired_success标记
-    for (int i = 0; i < 8; i++)
+    for (int i = 0; i < 2 * SEG_NUM; i++)
     {
       if (!info.paired_success[i] && info.entry[i].value > 0)
         return true;
     }
     if (info.retry2Cam_flag)
       return true;
-    for (int cam_idx = 0; cam_idx < 8; ++cam_idx)
+    for (int cam_idx = 0; cam_idx < 2 * SEG_NUM; ++cam_idx)
     {
       if (hash_cam_[bank_id][cam_idx].size > 0)
         return true;
@@ -1357,7 +1361,7 @@ namespace GNN
       return false;
     }
     auto&     cam  = hash_cam_[bank_id][cam_idx];
-    const int need = Pairing_value / 4 - value;
+    const int need = Pairing_value / SEG_NUM - value;
 
     bool found_pair = false;
     for (auto it2 = cam.buckets.begin(); it2 != cam.buckets.end() && !found_pair; ++it2)
@@ -1365,7 +1369,7 @@ namespace GNN
       if (it2->second.empty())
         continue;
       int val2 = it2->first;
-      if (need + val2 <= Pairing_value / 4)
+      if (need + val2 <= Pairing_value / SEG_NUM)
       {
         // 找到配对，配对输出
         CamEntry e2 = it2->second.front();
@@ -1395,7 +1399,7 @@ namespace GNN
       return false;
     }
     auto&     cam  = hash_cam_[bank_id][cam_idx];
-    const int need = Pairing_value / 4 - value;
+    const int need = Pairing_value / SEG_NUM - value;
     D_BANK_DEBUG(bank_id,
                  "CAM",
                  "Bank %d: CAM[%d] looking for partner with value=%d (need=%d)",
@@ -1495,19 +1499,19 @@ namespace GNN
       // 从最大bucket移除
       max_it->second.pop_front();
       cam.size--;
-      if (val1 == Pairing_value / 4)
+      if (val1 == Pairing_value / SEG_NUM)
       {
         emitSingle(bank_id, e1.value, e1.row_bits, cam_idx);
         return true;
       }
-      else if (val1 > Pairing_value / 4)
+      else if (val1 > Pairing_value / SEG_NUM)
       {
         // 从当前bucket移除
         // 将value减16，插入到新的bucket
-        e1.value    -= Pairing_value / 4;
-        int new_val  = val1 - Pairing_value / 4;
+        e1.value    -= Pairing_value / SEG_NUM;
+        int new_val  = val1 - Pairing_value / SEG_NUM;
         cam.buckets[new_val].push_back(e1);
-        emitSingle(bank_id, Pairing_value / 4, e1.row_bits, cam_idx);
+        emitSingle(bank_id, Pairing_value / SEG_NUM, e1.row_bits, cam_idx);
         cam.size++;
         return true;
       }
@@ -1553,7 +1557,7 @@ namespace GNN
       if (it2->second.empty())
         continue;
       int val2 = it2->first;
-      if (val1 + val2 <= Pairing_value / 4)
+      if (val1 + val2 <= Pairing_value / SEG_NUM)
       {
         // 找到配对，配对输出
         CamEntry e2 = it2->second.front();
@@ -1756,7 +1760,7 @@ namespace GNN
     auto& cam  = hash_cam_[bank_id][cam_idx];
     // 当前实现：仅记录日志；携带原始行bits供下游使用
     cal_cycle += a + b;
-    if (a + b == 8)  // 每个segment目标是8
+    if (a + b == MAC_NUM / SEG_NUM)  // 每个segment目标是8
       hash_cam_perf_stats_[bank_id].emit_paired_full_cycles++;
     else
       hash_cam_perf_stats_[bank_id].emit_paired_disfull_cycles++;

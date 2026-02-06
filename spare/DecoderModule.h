@@ -263,16 +263,16 @@ namespace GNN
     struct Retry2CamInfo
     {
       bool     retry2Cam_flag = false;
-      CamEntry entry[8];  // 8 entries: 2 rows × 4 segments
-      bool     paired_success[8] = { false, false, false, false, false, false, false, false };
+      CamEntry entry[2 * SEG_NUM];  // 8 entries: 2 rows × 4 segments
+      bool     paired_success[2 * SEG_NUM] = {};
     };
-    std::vector<Retry2CamInfo>          Info2Cam_;
+    std::vector<Retry2CamInfo>                    Info2Cam_;
     // Eight CAMs per bank: 2 rows × 4 segments per row
     // Access: hash_cam_[bank_id][row * 4 + segment]
-    std::vector<std::array<CamBank, 8>> hash_cam_;
-    static constexpr int                Pairing_value        = 32;
-    static constexpr int                kHashCamCapacity     = 64;
-    static constexpr int                kAggressiveThreshold = 59;
+    std::vector<std::array<CamBank, 2 * SEG_NUM>> hash_cam_;
+    static constexpr int                          Pairing_value        = MAC_NUM;
+    static constexpr int                          kHashCamCapacity     = 64;
+    static constexpr int                          kAggressiveThreshold = 59;
 
     // Hash CAM性能统计（每个bank独立）
     struct HashCamPerfStats
